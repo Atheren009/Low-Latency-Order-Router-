@@ -1,0 +1,46 @@
+name: C Build & Test
+
+on:
+  push:
+    branches: [main, dev]
+    paths: ['c/**', '.github/workflows/c_build.yml']
+  pull_request:
+    branches: [main]
+    paths: ['c/**']
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        build_type: [Release, Debug]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y cmake gcc libm-dev
+
+      - name: Configure (${{ matrix.build_type }})
+        run: |
+          cmake -S c -B c/build \
+                -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+                -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build
+        run: cmake --build c/build --parallel 4
+
+      - name: List binaries
+        run: ls -lh c/build/
+
+      - name: Run CTest
+        working-directory: c/build
+        run: ctest --output-on-failure --verbose
+
+      - name: Run latency profile (Release only)
+        if: matrix.build_type == 'Release'
+        run: c/build/test_latency

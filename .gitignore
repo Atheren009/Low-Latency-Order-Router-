@@ -1,0 +1,54 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── IDE / Editor ───────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── pytest ─────────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# ── C build artefacts ─────────────────────────────────────────────────────────
+c/build/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# ── Large CSV data files (too big for git) ────────────────────────────────────
+Price Feed/
+results/c_backtest_results.csv
+results/c_sim_results.csv
+results/backtest_results.csv
+results/latency_stats.csv
+results/benchmark_report.csv
+
+# ── uv lock file (optional — commit if you pin exact deps) ────────────────────
+# uv.lock    ← uncomment to ignore
+
+# ── Antigravity agent scratch ─────────────────────────────────────────────────
+.gemini/

@@ -1,0 +1,20 @@
+# Auto-detect text files and set line endings to LF on all platforms
+* text=auto eol=lf
+
+# Force LF for C source and shell scripts (Linux build target)
+*.c    text eol=lf
+*.h    text eol=lf
+*.sh   text eol=lf
+
+# Python
+*.py   text eol=lf
+
+# Config files
+*.toml text eol=lf
+*.yml  text eol=lf
+*.ini  text eol=lf
+*.md   text eol=lf
+
+# Binary — don't touch
+*.png  binary
+*.csv  binary
