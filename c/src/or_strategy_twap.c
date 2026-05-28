@@ -1,10 +1,4 @@
-/*
- * or_strategy_twap.c — TWAP: equal time slices across N bars.
- *
- * Returns num_slices tranches, each with one ChildOrder for slice_qty = qty/N.
- * The best venue is selected at route-time (initial snapshot); the router
- * re-seeds venues between tranches so each sees fresh liquidity.
- */
+/* TWAP: split order into equal-sized time slices. */
 #include "or_routing.h"
 #include <math.h>
 #include <string.h>

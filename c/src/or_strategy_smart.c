@@ -1,11 +1,4 @@
-/*
- * or_strategy_smart.c — Smart Order Router: cross-venue depth sweep.
- *
- * Algorithm (single tranche):
- *   1. Rank venues by fee-adjusted effective price (best first).
- *   2. Allocate min(remaining, venue_liquidity) to each venue in order.
- *   3. Skip venues with < min_qty available.
- */
+/* Smart router: sweep liquidity across venues, best price first. */
 #include "or_routing.h"
 #include <math.h>
 #include <string.h>
@@ -40,7 +33,7 @@ static OrError route_smart(
         if (liquidity < min_qty) continue;
 
         double alloc = fmin(remaining, liquidity);
-        /* Round to 6 decimal places (mirrors Python's round(x, 6)) */
+
         alloc = round(alloc * 1e6) / 1e6;
 
         ChildOrder *child = &out[0][n_children++];
@@ -59,8 +52,7 @@ static OrError route_smart(
 }
 
 Strategy or_strategy_smart(double min_qty) {
-    /* SmartParams is small; embed in a static — safe for single-threaded use.
-     * For multi-threaded, allocate on heap and free after backtest.          */
+    /* static is fine single-threaded; heap-allocate if you go multi-threaded */
     static SmartParams p;
     p.min_qty = min_qty;
     return (Strategy){ "Smart", route_smart, &p };

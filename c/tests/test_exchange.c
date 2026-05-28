@@ -1,9 +1,4 @@
-/*
- * test_exchange.c — Exchange seeding and submission tests.
- *
- * Build: gcc -std=c11 -Wall -I../include test_exchange.c
- *              ../src/or_order_book.c ../src/or_exchange.c -lm -o test_exchange
- */
+/* Exchange seeding, submission, and fee tests */
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
@@ -17,7 +12,7 @@ static Bar make_bar(double vwap, double volume) {
                   .close=vwap, .volume=volume, .trade_count=100, .vwap=vwap };
 }
 
-/* E1: Seeded book has 3 ask + 3 bid levels */
+
 static void e1_seeding_levels(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_ALPHA);
     Bar b = make_bar(190.0, 9000.0);
@@ -27,7 +22,7 @@ static void e1_seeding_levels(void) {
     PASS("E1 seeding creates 3 ask + 3 bid levels");
 }
 
-/* E2: Ask base = vwap + spread_bias for ALPHA (0.01) */
+
 static void e2_alpha_ask_base(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_ALPHA);
     Bar b = make_bar(190.0, 9000.0);
@@ -37,7 +32,7 @@ static void e2_alpha_ask_base(void) {
     PASS("E2 ALPHA ask base = vwap + spread_bias");
 }
 
-/* E3: GAMMA ask base further from VWAP (spread_bias=0.05) */
+
 static void e3_gamma_ask_base(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_GAMMA);
     Bar b = make_bar(190.0, 9000.0);
@@ -46,7 +41,7 @@ static void e3_gamma_ask_base(void) {
     PASS("E3 GAMMA ask = vwap + 0.05");
 }
 
-/* E4: Level quantity = max(10, volume/30) */
+
 static void e4_level_qty(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_ALPHA);
     Bar b = make_bar(190.0, 9000.0);
@@ -56,7 +51,7 @@ static void e4_level_qty(void) {
     PASS("E4 liquidity = 3 * max(10, vol/30)");
 }
 
-/* E5: Minimum liquidity when volume is tiny */
+
 static void e5_min_qty(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_BETA);
     Bar b = make_bar(190.0, 0.0);   /* zero volume → min 10 per level */
@@ -65,7 +60,7 @@ static void e5_min_qty(void) {
     PASS("E5 min qty = 10 per level when volume=0");
 }
 
-/* E6: submit() returns filled_qty and avg_price */
+
 static void e6_submit_fill(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_ALPHA);
     Bar b = make_bar(190.0, 9000.0);
@@ -80,7 +75,7 @@ static void e6_submit_fill(void) {
     PASS("E6 submit fills quantity");
 }
 
-/* E7: fees_paid = avg_price * qty * fee_bps / 10000 */
+
 static void e7_fees(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_ALPHA);  /* fee=2.0 bps */
     Bar b = make_bar(190.0, 9000.0);
@@ -95,7 +90,7 @@ static void e7_fees(void) {
     PASS("E7 fees = price * qty * fee_bps / 10000");
 }
 
-/* E8: effective_price = ask * (1 + fee_bps/10000) for BUY */
+
 static void e8_effective_price(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_ALPHA);
     Bar b = make_bar(190.0, 9000.0);
@@ -107,7 +102,7 @@ static void e8_effective_price(void) {
     PASS("E8 effective_price for BUY");
 }
 
-/* E9: Reset clears book */
+
 static void e9_reset(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_ALPHA);
     Bar b = make_bar(190.0, 9000.0);
@@ -118,7 +113,7 @@ static void e9_reset(void) {
     PASS("E9 reset clears book");
 }
 
-/* E10: Re-seeding replaces old liquidity */
+
 static void e10_reseed(void) {
     Exchange ex; or_exchange_init(&ex, VENUE_ALPHA);
     Bar b1 = make_bar(190.0, 9000.0);

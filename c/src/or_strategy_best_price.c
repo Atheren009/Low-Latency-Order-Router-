@@ -1,9 +1,4 @@
-/*
- * or_strategy_best_price.c — BestPrice: single-venue greedy router.
- *
- * Routes 100% of the order to the venue with the cheapest fee-adjusted quote.
- * Returns one tranche with one ChildOrder.
- */
+/* BestPrice: send everything to the cheapest venue. */
 #include "or_routing.h"
 #include <string.h>
 
@@ -25,7 +20,7 @@ static OrError route_best_price(
     *out_n_tranches = 1;
     out_n[0]        = 0;
 
-    if (n == 0) return OR_OK;   /* no venue has a quote */
+    if (n == 0) return OR_OK;
 
     ChildOrder *child = &out[0][0];
     memset(child, 0, sizeof(ChildOrder));
@@ -33,7 +28,7 @@ static OrError route_best_price(
     child->venue       = ranked[0];
     child->side        = parent->side;
     child->quantity    = parent->quantity;
-    child->limit_price = 0.0;   /* MARKET */
+    child->limit_price = 0.0;
     out_n[0] = 1;
     return OR_OK;
 }

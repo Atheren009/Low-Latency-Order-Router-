@@ -1,11 +1,4 @@
-/*
- * test_strategies.c — Routing strategy tests (15 tests).
- *
- * Build: gcc -std=c11 -Wall -I../include test_strategies.c
- *         ../src/or_order_book.c ../src/or_exchange.c ../src/or_routing.c
- *         ../src/or_strategy_best_price.c ../src/or_strategy_smart.c
- *         ../src/or_strategy_twap.c ../src/or_strategy_vwap.c -lm -o test_strategies
- */
+/* Routing strategy tests — BestPrice, Smart, TWAP, VWAP */
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
@@ -32,7 +25,7 @@ static Order make_parent(double qty) {
                     .status=STATUS_OPEN, .quantity=qty };
 }
 
-/* S1: BestPrice routes to single venue */
+
 static void s1_best_price_single_venue(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_best_price();
@@ -48,7 +41,7 @@ static void s1_best_price_single_venue(void) {
     PASS("S1 BestPrice single venue");
 }
 
-/* S2: BestPrice selects cheapest effective price */
+
 static void s2_best_price_cheapest(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_best_price();
@@ -71,7 +64,7 @@ static void s2_best_price_cheapest(void) {
     PASS("S2 BestPrice selects cheapest effective price");
 }
 
-/* S3: Smart routes across multiple venues when qty > single venue depth */
+
 static void s3_smart_multi_venue(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_smart(1.0);
@@ -86,7 +79,7 @@ static void s3_smart_multi_venue(void) {
     PASS("S3 Smart multi-venue for large order");
 }
 
-/* S4: Smart total allocation = order quantity */
+
 static void s4_smart_total_qty(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_smart(1.0);
@@ -101,7 +94,7 @@ static void s4_smart_total_qty(void) {
     PASS("S4 Smart total allocation = order qty");
 }
 
-/* S5: TWAP returns num_slices tranches */
+
 static void s5_twap_n_tranches(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_twap(5);
@@ -115,7 +108,7 @@ static void s5_twap_n_tranches(void) {
     PASS("S5 TWAP returns 5 tranches");
 }
 
-/* S6: TWAP equal slice sizes */
+
 static void s6_twap_equal_slices(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_twap(5);
@@ -132,7 +125,7 @@ static void s6_twap_equal_slices(void) {
     PASS("S6 TWAP equal slice sizes");
 }
 
-/* S7: TWAP needs bars — OR_ERR_NO_BARS without them */
+
 static void s7_twap_no_bars(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_twap(5);
@@ -144,7 +137,7 @@ static void s7_twap_no_bars(void) {
     PASS("S7 TWAP returns OR_ERR_NO_BARS without bars");
 }
 
-/* S8: VWAP returns num_slices tranches */
+
 static void s8_vwap_n_tranches(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_vwap(5, 1.0);
@@ -157,7 +150,7 @@ static void s8_vwap_n_tranches(void) {
     PASS("S8 VWAP returns 5 tranches");
 }
 
-/* S9: VWAP total = order qty */
+
 static void s9_vwap_total_qty(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_vwap(5, 1.0);
@@ -175,7 +168,7 @@ static void s9_vwap_total_qty(void) {
     PASS("S9 VWAP total quantity = parent qty");
 }
 
-/* S10: VWAP volume-weighted: higher-volume bars get more qty */
+
 static void s10_vwap_weights(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_vwap(2, 1.0);
@@ -193,7 +186,7 @@ static void s10_vwap_weights(void) {
     PASS("S10 VWAP volume-weighted slices");
 }
 
-/* S11: Venue ranking — ascending effective price for BUY */
+
 static void s11_venue_ranking(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     VenueId ranked[OR_VENUE_COUNT];
@@ -208,7 +201,7 @@ static void s11_venue_ranking(void) {
     PASS("S11 venue ranking ascending for BUY");
 }
 
-/* S12: No venues with quotes → empty tranche */
+
 static void s12_no_quotes(void) {
     Exchange venues[OR_VENUE_COUNT];
     for (int v=0;v<OR_VENUE_COUNT;v++) or_exchange_init(&venues[v],(VenueId)v);
@@ -222,7 +215,7 @@ static void s12_no_quotes(void) {
     PASS("S12 no quotes → empty tranche");
 }
 
-/* S13: TWAP adapts to fewer bars than num_slices */
+
 static void s13_twap_fewer_bars(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy s = or_strategy_twap(5);
@@ -235,7 +228,7 @@ static void s13_twap_fewer_bars(void) {
     PASS("S13 TWAP adapts to fewer bars");
 }
 
-/* S14: Smart min_qty filter skips low-liquidity venues */
+
 static void s14_smart_min_qty_filter(void) {
     Exchange venues[OR_VENUE_COUNT];
     /* Seed only ALPHA with minimal volume (10 shares per level = 30 total) */
@@ -254,7 +247,7 @@ static void s14_smart_min_qty_filter(void) {
     PASS("S14 Smart min_qty filter");
 }
 
-/* S15: All strategies produce SIDE_BUY children matching parent side */
+
 static void s15_child_side_matches_parent(void) {
     Exchange venues[OR_VENUE_COUNT]; Bar b = ref_bar(); seed_all(venues, &b);
     Strategy strats[4] = {

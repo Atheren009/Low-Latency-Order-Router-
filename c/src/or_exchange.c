@@ -1,19 +1,10 @@
-/*
- * or_exchange.c — Simulated exchange: seeding + order submission.
- *
- * Seeding plants 3 ask + 3 bid limit orders per venue. Each level uses
- * a deterministic ID so we never call or_next_id() during seeding
- * (avoiding atomic overhead on the cold path).
- *
- * Deterministic seed IDs:
- *   ask level i:  0xA000_0000_0000_0000 | (venue_id << 4) | i
- *   bid level i:  0xB000_0000_0000_0000 | (venue_id << 4) | i
- */
+/* Simulated exchange. Seed IDs are deterministic:
+ * ask: 0xA000..0 | (venue<<4) | i, bid: 0xB000..0 | (venue<<4) | i */
 #include "or_exchange.h"
 #include <math.h>
 #include <string.h>
 
-/* Round to 4 decimal places (mirrors Python's round(x, 4)). */
+
 static inline double r4(double x) {
     return round(x * 10000.0) / 10000.0;
 }
@@ -30,7 +21,7 @@ void or_exchange_reset(Exchange *ex) {
 }
 
 void or_exchange_seed(Exchange *ex, const Bar *bar) {
-    or_book_init(&ex->book);   /* wipe old liquidity */
+    or_book_init(&ex->book);
     ex->ref_price = bar->vwap;
 
     const VenueConfig *cfg = &OR_VENUES[ex->id];
@@ -39,7 +30,7 @@ void or_exchange_seed(Exchange *ex, const Bar *bar) {
     double bid_base  = r4(bar->vwap - cfg->spread_bias);
 
     for (int i = 0; i < 3; i++) {
-        /* Ask level */
+
         Order ask = {
             .id        = 0xA000000000000000ULL | ((uint64_t)ex->id << 4) | i,
             .side      = SIDE_SELL,
@@ -51,7 +42,7 @@ void or_exchange_seed(Exchange *ex, const Bar *bar) {
         };
         or_book_rest(&ex->book, &ask);
 
-        /* Bid level */
+
         Order bid = {
             .id        = 0xB000000000000000ULL | ((uint64_t)ex->id << 4) | i,
             .side      = SIDE_BUY,
@@ -93,7 +84,7 @@ FillResult or_exchange_submit(Exchange *ex, const ChildOrder *child) {
 
     if (n_new == 0) return result;
 
-    /* Compute VWAP fill price and fees */
+
     double notional = 0.0;
     double filled   = 0.0;
     for (int i = n_before; i < ex->book.n_trades; i++) {

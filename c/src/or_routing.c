@@ -1,15 +1,7 @@
-/*
- * or_routing.c — Shared venue ranking helper used by all strategies.
- */
+/* Venue ranking by effective price, shared across strategies. */
 #include "or_routing.h"
 
-/*
- * Sort 3 venues by effective price.
- * BUY:  ascending effective ask  (cheapest first)
- * SELL: descending effective bid (highest first)
- *
- * Insertion sort — always exactly 3 elements, O(1) in practice.
- */
+
 int or_rank_venues(
     Exchange   venues[OR_VENUE_COUNT],
     OrderSide  side,
@@ -28,7 +20,7 @@ int or_rank_venues(
         }
     }
 
-    /* Insertion sort (ascending for BUY, descending for SELL) */
+
     for (int i = 1; i < n; i++) {
         double ke = ep[i];
         int    kv = valid[i];

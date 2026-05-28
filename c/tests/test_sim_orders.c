@@ -1,9 +1,4 @@
-/*
- * test_sim_orders.c — Tests for the simulated order generator.
- *
- * Build: gcc -std=c11 -Wall -I../include test_sim_orders.c
- *              ../src/or_sim_orders.c -lm -o test_sim_orders
- */
+/* Simulated order generator tests */
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>

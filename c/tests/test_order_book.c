@@ -1,10 +1,4 @@
-/*
- * test_order_book.c — 20 assert()-based tests for the order book.
- *
- * Tests mirror test_order_book.py for parity validation.
- * Build: gcc -std=c11 -Wall -I../include test_order_book.c ../src/or_order_book.c -lm -o test_order_book
- * Run:   ./test_order_book
- */
+/* Order book matching engine tests — mirrors test_order_book.py */
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
@@ -27,7 +21,7 @@ static Order make_market(uint64_t id, OrderSide side, double qty) {
     };
 }
 
-/* T1: Empty book has no best bid/ask */
+
 static void t1_empty_book(void) {
     OrderBook b; or_book_init(&b);
     assert(or_book_best_bid(&b) == 0.0);
@@ -35,7 +29,7 @@ static void t1_empty_book(void) {
     PASS("T1 empty book");
 }
 
-/* T2: Single resting limit order is visible as best quote */
+
 static void t2_single_resting(void) {
     OrderBook b; or_book_init(&b);
     Order o = make_limit(1, SIDE_BUY, 100, 190.0);
@@ -45,7 +39,7 @@ static void t2_single_resting(void) {
     PASS("T2 single resting bid");
 }
 
-/* T3: Matching bid > ask executes at maker (ask) price */
+
 static void t3_basic_match(void) {
     OrderBook b; or_book_init(&b);
     Order sell = make_limit(1, SIDE_SELL, 100, 189.5);
@@ -59,7 +53,7 @@ static void t3_basic_match(void) {
     PASS("T3 basic match at maker price");
 }
 
-/* T4: Partial fill — aggressor larger than resting */
+
 static void t4_partial_fill(void) {
     OrderBook b; or_book_init(&b);
     Order sell = make_limit(1, SIDE_SELL, 50, 190.0);
@@ -74,7 +68,7 @@ static void t4_partial_fill(void) {
     PASS("T4 partial fill");
 }
 
-/* T5: Market order sweeps all ask levels */
+
 static void t5_market_sweep(void) {
     OrderBook b; or_book_init(&b);
     Order s1 = make_limit(1, SIDE_SELL, 100, 190.0);
@@ -90,7 +84,7 @@ static void t5_market_sweep(void) {
     PASS("T5 market sweep two levels");
 }
 
-/* T6: FIFO priority — earlier order at same price fills first */
+
 static void t6_fifo_priority(void) {
     OrderBook b; or_book_init(&b);
     Order s1 = make_limit(1, SIDE_SELL, 50, 190.0);
@@ -105,7 +99,7 @@ static void t6_fifo_priority(void) {
     PASS("T6 FIFO priority");
 }
 
-/* T7: Limit buy below ask does NOT match */
+
 static void t7_limit_no_cross(void) {
     OrderBook b; or_book_init(&b);
     Order sell = make_limit(1, SIDE_SELL, 100, 192.0);
@@ -119,7 +113,7 @@ static void t7_limit_no_cross(void) {
     PASS("T7 limit no cross");
 }
 
-/* T8: Cancel removes resting order */
+
 static void t8_cancel(void) {
     OrderBook b; or_book_init(&b);
     Order buy = make_limit(10, SIDE_BUY, 100, 190.0);
@@ -132,7 +126,7 @@ static void t8_cancel(void) {
     PASS("T8 cancel resting order");
 }
 
-/* T9: Cancel unknown ID returns OR_ERR_NOT_FOUND */
+
 static void t9_cancel_not_found(void) {
     OrderBook b; or_book_init(&b);
     OrError e = or_book_cancel(&b, 999, SIDE_BUY);
@@ -140,7 +134,7 @@ static void t9_cancel_not_found(void) {
     PASS("T9 cancel not found");
 }
 
-/* T10: Invalid quantity rejected */
+
 static void t10_invalid_qty(void) {
     OrderBook b; or_book_init(&b);
     Order bad = make_limit(1, SIDE_BUY, -10, 190.0);
@@ -149,7 +143,7 @@ static void t10_invalid_qty(void) {
     PASS("T10 invalid qty");
 }
 
-/* T11: Invalid LIMIT price rejected */
+
 static void t11_invalid_price(void) {
     OrderBook b; or_book_init(&b);
     Order bad = { .id=1, .side=SIDE_BUY, .type=TYPE_LIMIT,
@@ -159,7 +153,7 @@ static void t11_invalid_price(void) {
     PASS("T11 invalid limit price");
 }
 
-/* T12: Ask liquidity sums resting quantities */
+
 static void t12_ask_liquidity(void) {
     OrderBook b; or_book_init(&b);
     Order s1 = make_limit(1, SIDE_SELL, 100, 190.0);
@@ -170,7 +164,7 @@ static void t12_ask_liquidity(void) {
     PASS("T12 ask liquidity");
 }
 
-/* T13: SELL aggressor matches best bid first */
+
 static void t13_sell_hits_bid(void) {
     OrderBook b; or_book_init(&b);
     Order b1 = make_limit(1, SIDE_BUY, 100, 191.0);
@@ -185,7 +179,7 @@ static void t13_sell_hits_bid(void) {
     PASS("T13 SELL hits best bid");
 }
 
-/* T14: Multiple price levels, price priority respected */
+
 static void t14_price_priority(void) {
     OrderBook b; or_book_init(&b);
     Order cheap = make_limit(1, SIDE_SELL, 100, 189.0);
@@ -196,7 +190,7 @@ static void t14_price_priority(void) {
     PASS("T14 price priority in sorted book");
 }
 
-/* T15: Resting order after partial fill */
+
 static void t15_resting_partial(void) {
     OrderBook b; or_book_init(&b);
     Order sell = make_limit(1, SIDE_SELL, 200, 190.0);
@@ -211,7 +205,7 @@ static void t15_resting_partial(void) {
     PASS("T15 resting order partially consumed");
 }
 
-/* T16: Effective ask includes fee adjustment */
+
 static void t16_effective_ask(void) {
     OrderBook b; or_book_init(&b);
     Order sell = make_limit(1, SIDE_SELL, 100, 190.0);
@@ -221,7 +215,7 @@ static void t16_effective_ask(void) {
     PASS("T16 effective ask with fee");
 }
 
-/* T17: Effective bid includes fee adjustment */
+
 static void t17_effective_bid(void) {
     OrderBook b; or_book_init(&b);
     Order buy = make_limit(1, SIDE_BUY, 100, 190.0);
@@ -231,7 +225,7 @@ static void t17_effective_bid(void) {
     PASS("T17 effective bid with fee");
 }
 
-/* T18: Market order on empty book leaves order unfilled */
+
 static void t18_market_no_liquidity(void) {
     OrderBook b; or_book_init(&b);
     Order buy = make_market(1, SIDE_BUY, 100.0);
@@ -243,7 +237,7 @@ static void t18_market_no_liquidity(void) {
     PASS("T18 market on empty book");
 }
 
-/* T19: Book correctly initialises to zero state */
+
 static void t19_init_zero(void) {
     OrderBook b; or_book_init(&b);
     assert(b.asks.count == 0);
@@ -252,7 +246,7 @@ static void t19_init_zero(void) {
     PASS("T19 init zero state");
 }
 
-/* T20: Multiple fills from same level aggregate correctly */
+
 static void t20_multi_fill_same_level(void) {
     OrderBook b; or_book_init(&b);
     Order s1 = make_limit(1, SIDE_SELL,  30, 190.0);

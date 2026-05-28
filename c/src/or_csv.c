@@ -1,14 +1,5 @@
-/*
- * or_csv.c — Minimal CSV bar loader (no dynamic allocation).
- *
- * Reads the CSV line-by-line with fgets into a fixed buffer.
- * Tokenises by comma using strtok_r for thread safety.
- * Skips header and rows whose symbol doesn't match the filter.
- *
- * Column layout (0-indexed):
- *   0: symbol   1: timestamp  2: open  3: high  4: low
- *   5: close    6: volume     7: trade_count    8: vwap
- */
+/* CSV bar loader (no dynamic allocation).
+ * Columns: symbol, timestamp, open, high, low, close, volume, trade_count, vwap */
 #include "or_csv.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,22 +27,22 @@ int or_csv_load(const char *path, const char *symbol_filter, Dataset *ds) {
     int64_t bar_index = 0;
 
     while (fgets(line, sizeof(line), f)) {
-        /* Strip trailing newline / carriage return */
+
         int len = (int)strlen(line);
         while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r'))
             line[--len] = '\0';
 
-        if (row == 0) { row++; continue; }   /* skip header */
+        if (row == 0) { row++; continue; }
 
-        /* Tokenise */
+
         char *save = NULL;
         char *tok[9];
         int   nc = 0;
         char *p  = strtok_r(line, ",", &save);
         while (p && nc < 9) { tok[nc++] = p; p = strtok_r(NULL, ",", &save); }
-        if (nc < 9) { row++; continue; }   /* malformed row */
+        if (nc < 9) { row++; continue; }
 
-        /* Symbol filter */
+
         if (symbol_filter && symbol_filter[0] &&
             strncmp(tok[0], symbol_filter, OR_MAX_SYMBOL - 1) != 0) {
             row++;

@@ -1,32 +1,12 @@
 /*
- * test_latency.c — Correct latency profiler for the C hot path.
+ * Latency profiler for the C routing hot path.
  *
- * ┌──────────────────────────────────────────────────────────────────┐
- * │  TWO DISTINCT LATENCY METRICS — do not confuse them             │
- * │                                                                  │
- * │  1. Routing Decision Latency (measured here, µs)                 │
- * │     Wall-clock time for: strategy.route() + exchange.submit()   │
- * │     This is the CPU cost of the algorithm itself.               │
- * │                                                                  │
- * │  2. Simulated Exchange Latency (in backtest CSV, ms)             │
- * │     OR_VENUES[v].latency_ms: ALPHA=1ms, BETA=5ms, GAMMA=15ms   │
- * │     This is a business model of network + matching delay.       │
- * │     It is NOT measured wall-clock time.                         │
- * └──────────────────────────────────────────────────────────────────┘
+ * Two distinct metrics — don't confuse them:
+ *   1. Routing Decision Latency (measured here, µs) — CPU cost of route()+submit()
+ *   2. Simulated Exchange Latency (backtest CSV, ms) — modeled network delay, NOT wall-clock
  *
- * Measurement correctness:
- *   - Anti-optimization: checksum from or_router_benchmark() is printed
- *     to stderr, anchoring every routing call in the optimizer's view.
- *   - Warmup: 200 seeded iterations inside benchmark(); no external loop.
- *   - Sanity check: verify total_filled_qty > 0 (algorithm actually ran).
- *   - Clock: CLOCK_MONOTONIC, nanosecond resolution on Linux.
- *
- * Build: gcc -std=c11 -O2 -Wall -I../include test_latency.c
- *         ../src/or_order_book.c ../src/or_exchange.c ../src/or_routing.c
- *         ../src/or_strategy_best_price.c ../src/or_strategy_smart.c
- *         ../src/or_strategy_twap.c ../src/or_strategy_vwap.c
- *         ../src/or_router.c -lm -o test_latency
- * Run:   ./test_latency
+ * Anti-DCE: checksum from or_router_benchmark() is printed to stderr so
+ * the optimizer can't eliminate routing calls. Warmup is internal (200 iters).
  */
 #include <assert.h>
 #include <stdio.h>
@@ -38,7 +18,6 @@
 
 #define N_ITERS  5000   /* timed iterations per strategy                */
 
-/* ── Percentile helper ────────────────────────────────────────────────── */
 static int cmp_double(const void *a, const void *b) {
     double da = *(const double *)a, db = *(const double *)b;
     return (da > db) - (da < db);
@@ -49,16 +28,9 @@ static double percentile(const double *sorted, int n, double p) {
     return sorted[idx];
 }
 
-/* ── Sanity check: verify algorithm is actually executing ─────────────── */
-/*
- * Directly runs a single seeded route+submit (outside the benchmark timer)
- * and confirms filled_qty > 0.  If the optimizer eliminated the call in
- * the benchmark loop, this separate execution would still show fills —
- * but the benchmark numbers would be suspiciously small (< clock resolution).
- * Prints a warning if P99 < 0.1 µs (clock_gettime overhead is ~0.1–0.4 µs).
- */
+/* Runs one route+submit outside the timer to confirm fills actually happen */
 static void sanity_check(const char *name, double p99_us, const Bar *bar) {
-    /* One fully-pinned routing call */
+
     Router r2;
     Strategy s = or_strategy_best_price();
     or_router_init(&r2, s);
@@ -84,7 +56,7 @@ static void sanity_check(const char *name, double p99_us, const Bar *bar) {
     }
 }
 
-/* ── Main ─────────────────────────────────────────────────────────────── */
+
 int main(void) {
     Bar ref = {
         .row_index = 0, .open = 189.5, .high = 190.2, .low = 189.3,
@@ -99,7 +71,7 @@ int main(void) {
     };
     const char *names[4] = { "BestPrice", "Smart", "TWAP(5)", "VWAP(5)" };
 
-    /* Expected fill rate per strategy (for sanity comment) */
+
     const char *expect[4] = {
         "100% fill, 1 venue",
         "100% fill, 1-3 venues",
@@ -128,11 +100,8 @@ int main(void) {
         Router r;
         or_router_init(&r, strats[si]);
 
-        /*
-         * All warmup is inside or_router_benchmark() (200 seeded iters).
-         * Do NOT add an external warmup loop — it would run on a stale
-         * (partially-consumed) book and produce a misleading warm state.
-         */
+        /* warmup is inside or_router_benchmark() — don't add an external loop,
+         * it'd run on a stale (consumed) book and give misleading numbers */
         or_router_benchmark(&r, &ref, N_ITERS, lats);
 
         qsort(lats, N_ITERS, sizeof(double), cmp_double);
@@ -143,10 +112,10 @@ int main(void) {
         double p99 = percentile(lats, N_ITERS, 99.0);
         double mx  = lats[N_ITERS - 1];
 
-        /* Run sanity check (prints to stderr, doesn't pollute table) */
+
         sanity_check(names[si], p99, &ref);
 
-        /* Status note */
+
         const char *status;
         if (p99 < 0.1)       status = "⚠ DCE suspected";
         else if (p99 < 5.0)  status = "✓ excellent";
@@ -162,7 +131,7 @@ int main(void) {
         if (si == 0) p99_best = p99;
     }
 
-    /* Interpretation guide */
+
     printf("\n");
     printf("  ── Interpretation ─────────────────────────────────────────\n");
     printf("  P50: median latency (most iterations look like this)\n");
@@ -178,12 +147,11 @@ int main(void) {
     printf("  Recheck: compile WITHOUT -O2, confirm numbers are larger.\n");
     printf("\n");
 
-    /* ── Assert ─────────────────────────────────────────────────────── */
-    /* P99 should be above clock_gettime floor (real work happened)     */
+    /* P99 must be above clock_gettime floor (real work happened) */
     assert(p99_best >= 0.05 &&
            "BestPrice P99 < 0.05µs: compiler eliminated the algorithm");
 
-    /* P99 must be below sane upper bound even on WSL2 /mnt/ */
+
     assert(p99_best < 500.0 &&
            "BestPrice P99 > 500µs: something is very wrong");
 

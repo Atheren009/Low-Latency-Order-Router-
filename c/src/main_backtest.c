@@ -1,12 +1,4 @@
-/*
- * main_backtest.c — Entry point for the C backtest binary.
- *
- * Usage:
- *   ./build/or_backtest <price_feed_dir> <output_csv> [max_windows]
- *
- * Example:
- *   ./build/or_backtest "Price Feed" results/c_backtest_results.csv 1000
- */
+/* Backtest entry: ./build/or_backtest <price_feed_dir> <output_csv> [max_windows] */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +18,7 @@ int main(int argc, char *argv[]) {
     const char *out_csv  = argv[2];
     int max_windows      = (argc >= 4) ? atoi(argv[3]) : 0;
 
-    /* Build dataset paths */
+
     char path_aapl[600], path_msft[600], path_spy[600];
     snprintf(path_aapl, sizeof(path_aapl), "%s/AAPL_1min_2024-2026.csv", feed_dir);
     snprintf(path_msft, sizeof(path_msft), "%s/MSFT_1min_2024-2026.csv", feed_dir);

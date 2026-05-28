@@ -1,10 +1,4 @@
-/*
- * or_strategy_vwap.c — VWAP: volume-weighted time slices.
- *
- * slice_qty[i] = parent_qty * (bars[i].volume / Σ bars[j].volume)
- * Last slice absorbs rounding remainder.
- * Slices < min_qty are skipped (empty tranche).
- */
+/* VWAP: slice_qty[i] = parent_qty * vol[i]/Σvol. Last slice absorbs remainder. */
 #include "or_routing.h"
 #include <math.h>
 #include <string.h>
@@ -29,7 +23,7 @@ static OrError route_vwap(
 
     *out_n_tranches = n;
 
-    /* Compute volume weights */
+
     double total_vol = 0.0;
     for (int i = 0; i < n; i++) total_vol += bars[i].volume;
 
@@ -40,7 +34,7 @@ static OrError route_vwap(
         for (int i = 0; i < n; i++) weights[i] = bars[i].volume / total_vol;
     }
 
-    /* Best venue by effective price */
+
     VenueId ranked[OR_VENUE_COUNT];
     int n_v = or_rank_venues(venues, parent->side, ranked);
 

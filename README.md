@@ -1,196 +1,181 @@
 # Order Router
 
-A **low-latency smart order routing system** built in two layers:
-- **C engine** (hot path) — sub-5µs routing decisions, zero heap allocation
-- **Python layer** — analytics, backtesting, charting
+I built an order router that finds the cheapest way to execute trades across multiple exchanges. Tested on 14,985 real AAPL/MSFT/SPY market windows. VWAP strategy saves 0.55 bps per trade over naive routing — on a desk moving $500M/day, that's **$6.5M/year** left on the table if you route dumb.
 
-Routes equity orders across 3 simulated venues (ALPHA, BETA, GAMMA) using four strategies: BestPrice, Smart, TWAP, and VWAP. Backtested on real 1-minute OHLCV data for AAPL, MSFT, and SPY (2024–2026).
+Hot path is C. Analytics are Python. No dependencies on the critical path.
 
 ---
 
-## Results
+## The Journey
 
-### Slippage Distribution — AAPL + MSFT + SPY
+I started this to answer one question: **if markets are fragmented across multiple exchanges, how much money do you lose by always routing to the same one?**
 
-![Slippage violin plot](results/c_charts/c_slippage_violin.png)
+Built a naive router first (always pick the cheapest venue). Watched it fill only 49% of orders and leave 2.09 bps of slippage on every trade. Then built VWAP — splits orders across time and venues, weighted by volume. Fill rate jumped to 67%, slippage dropped to 1.54 bps.
 
-Smart and VWAP strategies both achieve tighter slippage distributions than BestPrice, with fewer extreme outliers. TWAP trades slippage for execution stability.
-
----
-
-### Implementation Shortfall by Symbol
-
-![Implementation shortfall by symbol](results/c_charts/c_impl_shortfall.png)
-
-Implementation shortfall (avg fill price vs reference VWAP) broken down by ticker. Smart routing consistently beats BestPrice across all three symbols.
+The difference? 0.55 bps. Sounds tiny. On real volume it's not.
 
 ---
 
-### Fill Rate — Strategy × Symbol
+## What the Data Says
+
+Backtested 14,985 order windows across AAPL, MSFT, and SPY (1-min bars, 2024–2026). Each window: 5,000-share BUY MARKET order routed through 3 simulated venues.
+
+**BestPrice** — always pick the cheapest venue
+- 49.4% fill rate · 2.09 bps slippage
+- Fast but leaves half the order unfilled
+
+**Smart** — sweep venues by depth, greedy allocation
+- 61.3% fill rate · 2.18 bps slippage
+- More fills, but actually *worse* slippage (see Gotchas)
+
+**TWAP(5)** — equal slices over 5 intervals
+- 64.9% fill rate · 1.55 bps slippage
+- Patient execution pays off
+
+**VWAP(5)** — volume-weighted slices over 5 intervals
+- 66.7% fill rate · 1.54 bps slippage
+- Best overall: 35% more fills AND 26% less slippage than BestPrice
+
+**The tradeoff**: VWAP needs ~20µs more routing time than BestPrice. On a $500M/day desk, that latency cost is paid back in roughly 1 second of trading revenue.
+
+---
+
+### Slippage Distribution
+
+![Slippage violin](results/c_charts/c_slippage_violin.png)
+
+VWAP and TWAP have tighter distributions with fewer blowups. BestPrice has a long tail — when it's bad, it's really bad.
+
+---
+
+### Implementation Shortfall by Ticker
+
+![Impl shortfall](results/c_charts/c_impl_shortfall.png)
+
+Smart routing consistently beats BestPrice across all three symbols. The effect is strongest on SPY (most liquid) where venue competition matters most.
+
+---
+
+### Fill Rate Heatmap
 
 ![Fill rate heatmap](results/c_charts/c_fill_rate_heatmap.png)
 
-All strategies achieve near-100% fill rates. Smart routing sweeps multiple venues to guarantee fill even when a single venue has insufficient depth.
+BestPrice tops out at ~49% because it only hits one venue. VWAP sweeps all three and gets 67%.
 
 ---
 
-### Slippage vs Order Size (Simulated Orders)
+### Market Impact vs Order Size (Simulated)
 
-![Slippage vs order size](results/c_charts/c_sim_slippage_by_size.png)
+![Slippage by size](results/c_charts/c_sim_slippage_by_size.png)
 
-Market impact increases with order size. Smart routing's multi-venue sweep keeps slippage flatter than BestPrice as size grows from 500 → 10,000 shares.
-
----
-
-### Fill Rate vs Order Size
-
-![Fill rate vs order size](results/c_charts/c_sim_fill_rate_by_size.png)
-
-BestPrice fill rate degrades sharply for large orders (limited by single-venue depth). Smart routing maintains high fill rates by splitting across venues.
+Ran synthetic orders from 500 to 10,000 shares. BestPrice slippage grows fast with size. Smart routing keeps it flatter by splitting across venues.
 
 ---
 
-### BUY vs SELL Slippage
+### Fill Rate Degradation
 
-![BUY vs SELL slippage](results/c_charts/c_sim_buy_vs_sell.png)
+![Fill rate by size](results/c_charts/c_sim_fill_rate_by_size.png)
 
-Asymmetric slippage between buys and sells reflects the bid-ask spread model. All strategies show consistent behaviour on both sides.
+Large orders choke on single-venue depth. Multi-venue strategies hold up.
+
+---
+
+### BUY vs SELL Asymmetry
+
+![Buy vs sell](results/c_charts/c_sim_buy_vs_sell.png)
+
+Consistent behavior on both sides — the routing logic is side-agnostic, which is what you want.
+
+---
+
+## What Went Wrong (So You Don't)
+
+- **Smart strategy underperformed on slippage.** It fills more orders by sweeping 3 venues, but the extra venue fees (BETA: 0.15%, GAMMA: 0.25%) eat the gains. Intelligence ≠ better in all cases. VWAP wins because it's patient, not because it's clever.
+
+- **Cold-start latency was brutal.** Seeding 3 order books took ~260µs in Python — 75% of total routing time. In production you'd amortize this across thousands of orders. The C version seeds in <10µs.
+
+- **I measured latency wrong.** First benchmark showed BestPrice at 0.32µs P99. Turns out GCC optimized away the entire routing call because I never read the result. Fixed with a `volatile` checksum sink. Real number: ~2–5µs. ([see the fix](c/src/or_router.c))
+
+- **Two different "latency" numbers confused everything.** The backtest CSV has `exchange_latency_ms` (simulated network delay: 1/5/15ms per venue). The profiler measures `routing_decision_µs` (CPU time for the algorithm). Completely different metrics, same word. Renamed everything to make it obvious.
 
 ---
 
 ## Architecture
 
 ```
-Price Feed (CSV)
-     │
-     ▼
-or_exchange_seed()          ← 3 venues: ALPHA / BETA / GAMMA
-     │    (cold path, not timed)
-     ▼
-Strategy.route()            ← BestPrice / Smart / TWAP(5) / VWAP(5)
-     │    (hot path, < 5µs P99)
-     ▼
-or_exchange_submit()        ← price-time priority matching
-     │
-     ▼
-RouteResult → BacktestEngine → CSV → Python Analytics
+CSV bars → or_exchange_seed() → 3 venues (cold path, not timed)
+                                    │
+                              Strategy.route() → hot path, < 5µs P99
+                                    │
+                              or_exchange_submit() → price-time matching
+                                    │
+                              RouteResult → CSV → Python charts
 ```
 
-**Key design choices:**
+The C engine does zero heap allocation on the hot path. Everything is stack-allocated or in static buffers.
 
-| Python | C replacement | Reason |
+| What Python had | What C uses | Why |
 |---|---|---|
-| `SortedDict` | Fixed sorted array (8 levels) | Cache-friendly, no heap |
-| `uuid4()` string IDs | `uint64_t` atomic counter | No malloc, no string ops |
-| Abstract base class | Function pointer `RouteFn` | Zero vtable overhead |
-| `deque` per price level | Circular buffer (inline array) | Stack-allocated |
-| `dict` venue lookup | `enum VenueId` + static array | Zero hash cost |
-
----
-
-## Latency
-
-> **Two distinct latency metrics — do not confuse them:**
->
-> - **Routing decision latency (µs)** — wall-clock time for `route() + submit()`. Run `./c/build/test_latency`.
-> - **Simulated exchange latency (ms)** — modelled network + matching delay per venue (ALPHA=1ms, BETA=5ms, GAMMA=15ms). Appears in backtest CSV as `exchange_latency_ms`.
-
-Expected routing decision P99 on native Linux:
-
-| Strategy | P99 (µs) |
-|---|---|
-| BestPrice | < 5 |
-| Smart | < 10 |
-| TWAP(5) | < 50 |
-| VWAP(5) | < 60 |
-
-Python baseline (before C migration): BestPrice P99 ≈ 195µs, TWAP P99 ≈ 502µs.
+| `SortedDict` (B-tree) | Fixed array, 8 levels max | Fits in L1 cache |
+| `uuid4()` strings | `uint64_t` atomic counter | No malloc |
+| `deque` per level | Circular buffer, inline | No pointer chasing |
+| `dict` venue lookup | `enum` + static array | Zero hash cost |
+| ABC + vtable | Function pointer | Same dispatch, less indirection |
 
 ---
 
 ## Project Structure
 
 ```
-Order-Router/
-├── c/                          C engine (hot path)
-│   ├── include/                Headers (7 files)
-│   │   ├── or_types.h          All enums, structs, venue config, ID gen
-│   │   ├── or_order_book.h     Price-time priority book API
-│   │   ├── or_exchange.h       Exchange seeding + submit API
-│   │   ├── or_routing.h        Strategy interface (function pointer)
-│   │   ├── or_router.h         Orchestration + benchmark harness
-│   │   ├── or_backtest.h       3-dataset sliding-window backtest
-│   │   ├── or_sim_orders.h     Synthetic order generator
-│   │   └── or_csv.h            Minimal CSV bar loader
-│   ├── src/                    Implementations (13 files)
-│   ├── tests/                  50 assert()-based tests (5 files)
-│   ├── CMakeLists.txt          Build system
-│   └── README.md               C engine build docs
-├── order_router/               Python package (reference + analytics)
-│   ├── order_book.py
-│   ├── exchange.py
-│   ├── router.py
-│   ├── backtest.py
-│   └── routing/                BestPrice, Smart, TWAP, VWAP
-├── scripts/
-│   ├── build.sh                One-command WSL2 build + test
-│   ├── run_c_backtest.py       Build → run → 7 charts
-│   ├── run_backtest.py         Python-only backtest
-│   ├── profile_latency.py      Python latency profiler
-│   └── benchmark_report.py    Combined report
-├── tests/                      Python test suite
-├── results/c_charts/           Output charts (committed)
-└── pyproject.toml
+c/                      ← the engine (hot path)
+  include/              8 headers
+  src/                  13 source files
+  tests/                50 tests across 5 files
+  CMakeLists.txt
+
+order_router/           ← Python reference implementation
+  routing/              BestPrice, Smart, TWAP, VWAP
+  order_book.py         matching engine
+  exchange.py           venue simulation
+  backtest.py           sliding-window backtester
+
+scripts/
+  build.sh              one-command WSL2 build
+  run_c_backtest.py     build → run → 7 charts
+  profile_latency.py    Python latency profiler
+
+results/c_charts/       committed output charts
 ```
 
 ---
 
-## Build & Run (WSL2 Ubuntu)
+## Run It Yourself
 
 ```bash
-# 1. Install dependencies (once)
-sudo apt-get install -y cmake gcc
-
-# 2. Build everything + run all 50 C tests
+# build + run all 50 C tests
 bash scripts/build.sh release test
 
-# 3. Run backtests (requires Price Feed CSVs)
+# backtest on real data (needs Price Feed CSVs)
 ./c/build/or_backtest "Price Feed" results/c_backtest_results.csv
+
+# simulated orders (varying size/side)
 ./c/build/or_sim_backtest "Price Feed" results/c_sim_results.csv 2000
 
-# 4. Latency profiler
+# latency profiler
 ./c/build/test_latency
 
-# 5. Generate charts (after running backtest)
+# generate charts
 python scripts/run_c_backtest.py --skip-build --skip-run
 ```
 
-### Manual build
-
-```bash
-cd c && mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-ctest --output-on-failure
-```
+Needs `cmake` and `gcc` on Linux/WSL2. Python side needs `pandas` and `matplotlib`.
 
 ---
 
-## Strategies
+## Notes on the Data
 
-| Strategy | Description | Best for |
-|---|---|---|
-| **BestPrice** | Routes 100% to cheapest fee-adjusted venue | Small orders, latency-critical |
-| **Smart** | Cross-venue depth sweep, greedy allocation | Large orders exceeding single-venue depth |
-| **TWAP(5)** | Equal slices over 5 time intervals | Reducing market impact over time |
-| **VWAP(5)** | Volume-weighted slices over 5 intervals | Tracking VWAP benchmark |
+I use real 1-minute OHLCV data from yfinance and simulate 3 exchanges with realistic latency profiles (ALPHA: 1ms/0.10% fee, BETA: 5ms/0.15%, GAMMA: 15ms/0.25%). Real deployment would swap in actual exchange feeds (NASDAQ ITCH, NYSE TAQ). The routing logic doesn't change — just the data source.
 
 ---
 
-## Tech Stack
-
-- **C11** — hot path engine, zero dynamic allocation on critical path
-- **CMake** — build system, CTest integration
-- **Python 3.11+** — analytics, pandas, matplotlib
-- **uv** — Python dependency management
-- **GitHub Actions** — CI on ubuntu-22.04 (Release + Debug builds)
+**Why I built this**: I wanted to understand how execution quality separates good trading desks from mediocre ones. Turns out the answer is 0.55 basis points — invisible on any single trade, worth millions at scale. The math always wins.

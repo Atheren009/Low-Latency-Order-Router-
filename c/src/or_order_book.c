@@ -1,32 +1,24 @@
-/*
- * or_order_book.c — Price-time priority matching engine implementation.
- *
- * Data layout:
- *   BookSide.levels[] is kept sorted at all times:
- *     asks → ascending price  (levels[0] = cheapest ask)
- *     bids → descending price (levels[0] = highest bid)
- *   Each PriceLevel.orders[] is a circular FIFO (front, count).
- *
- * All operations are O(N) where N = OR_MAX_LEVELS (= 8) — effectively O(1).
- */
+/* Price-time priority matching engine.
+ * levels[] stays sorted (asks ascending, bids descending).
+ * Each PriceLevel.orders[] is a circular FIFO. */
 #include "or_order_book.h"
 #include <string.h>
 #include <math.h>
 
-/* ── Internal helpers ────────────────────────────────────────────────── */
 
-/* Return pointer to front order of a level (no bounds check). */
+
+
 static inline Order *level_front(PriceLevel *lvl) {
     return &lvl->orders[lvl->front];
 }
 
-/* Pop the front order (mark slot empty, advance head, decrement count). */
+
 static inline void level_pop_front(PriceLevel *lvl) {
     lvl->front = (lvl->front + 1) % OR_MAX_ORDERS_LVL;
     lvl->count--;
 }
 
-/* Append an order to the back of the circular queue. */
+
 static inline OrError level_push_back(PriceLevel *lvl, const Order *o) {
     if (lvl->count >= OR_MAX_ORDERS_LVL) return OR_ERR_BOOK_FULL;
     int back = (lvl->front + lvl->count) % OR_MAX_ORDERS_LVL;
@@ -35,23 +27,18 @@ static inline OrError level_push_back(PriceLevel *lvl, const Order *o) {
     return OR_OK;
 }
 
-/*
- * Binary search for the insertion index of `price` in a BookSide.
- * Bids (is_bid=true):  descending → insert so that higher prices come first.
- * Asks (is_bid=false): ascending  → insert so that lower  prices come first.
- * Returns the index where price would be inserted (existing equal price → same idx).
- */
+/* Binary search: bids descending, asks ascending. */
 static int book_find_level(const BookSide *side, double price) {
     int lo = 0, hi = side->count;
     if (side->is_bid) {
-        /* Descending: find first position where levels[pos].price <= price */
+
         while (lo < hi) {
             int mid = (lo + hi) >> 1;
             if (side->levels[mid].price > price) lo = mid + 1;
             else                                 hi = mid;
         }
     } else {
-        /* Ascending: find first position where levels[pos].price >= price */
+
         while (lo < hi) {
             int mid = (lo + hi) >> 1;
             if (side->levels[mid].price < price) lo = mid + 1;
@@ -61,7 +48,7 @@ static int book_find_level(const BookSide *side, double price) {
     return lo;
 }
 
-/* Remove price level at index i by shifting remaining levels down. */
+
 static void book_remove_level(BookSide *side, int i) {
     int tail = side->count - 1 - i;
     if (tail > 0)
@@ -70,22 +57,22 @@ static void book_remove_level(BookSide *side, int i) {
     side->count--;
 }
 
-/* ── Matching engine ─────────────────────────────────────────────────── */
+
 
 static void book_match(OrderBook *book, Order *aggressor) {
     BookSide *opp = (aggressor->side == SIDE_BUY) ? &book->asks : &book->bids;
 
     while (or_order_active(aggressor) && opp->count > 0) {
-        PriceLevel *level = &opp->levels[0];   /* always best price */
+        PriceLevel *level = &opp->levels[0];
         double best_price  = level->price;
 
-        /* Price eligibility: MARKET always matches; LIMIT checks price */
+
         if (aggressor->type == TYPE_LIMIT) {
             if (aggressor->side == SIDE_BUY  && aggressor->price < best_price) break;
             if (aggressor->side == SIDE_SELL && aggressor->price > best_price) break;
         }
 
-        /* Fill orders at this price level (FIFO) */
+
         while (or_order_active(aggressor) && level->count > 0) {
             Order *resting   = level_front(level);
             double fill_qty  = fmin(or_order_remaining(aggressor),
@@ -94,7 +81,7 @@ static void book_match(OrderBook *book, Order *aggressor) {
             or_order_apply_fill(aggressor, fill_qty);
             or_order_apply_fill(resting,   fill_qty);
 
-            /* Record trade */
+
             if (book->n_trades < OR_MAX_TRADES) {
                 Trade *t = &book->trades[book->n_trades++];
                 t->price    = best_price;
@@ -108,18 +95,18 @@ static void book_match(OrderBook *book, Order *aggressor) {
                 }
             }
 
-            /* Remove fully-filled resting order from level */
+
             if (!or_order_active(resting))
                 level_pop_front(level);
         }
 
-        /* Remove empty price level */
+
         if (level->count == 0)
             book_remove_level(opp, 0);
     }
 }
 
-/* ── Public API ─────────────────────────────────────────────────────── */
+
 
 void or_book_init(OrderBook *book) {
     memset(book, 0, sizeof(OrderBook));
@@ -135,11 +122,11 @@ OrError or_book_rest(OrderBook *book, Order *order) {
     int pos = book_find_level(side, order->price);
 
     if (pos < side->count && side->levels[pos].price == order->price) {
-        /* Append to existing level */
+
         return level_push_back(&side->levels[pos], order);
     }
 
-    /* Insert new level */
+
     if (side->count >= OR_MAX_LEVELS) return OR_ERR_BOOK_FULL;
 
     int tail = side->count - pos;
@@ -164,7 +151,7 @@ OrError or_book_add_order(OrderBook *book, Order *order) {
 
     book_match(book, order);
 
-    /* Only resting LIMIT orders that are still active stay in the book */
+
     if (order->type == TYPE_LIMIT && or_order_active(order))
         return or_book_rest(book, order);
 
@@ -179,7 +166,7 @@ OrError or_book_cancel(OrderBook *book, uint64_t order_id, OrderSide side) {
             int idx = (lvl->front + j) % OR_MAX_ORDERS_LVL;
             if (lvl->orders[idx].id == order_id) {
                 lvl->orders[idx].status = STATUS_CANCELLED;
-                /* Shift remaining orders to fill the hole */
+
                 for (int k = j; k < lvl->count - 1; k++) {
                     int a = (lvl->front + k)     % OR_MAX_ORDERS_LVL;
                     int b = (lvl->front + k + 1) % OR_MAX_ORDERS_LVL;

@@ -1,12 +1,4 @@
-/*
- * or_router.h — OrderRouter: orchestrates strategy → exchange → result.
- *
- * The router:
- *   1. Calls strategy.route() to get tranches of ChildOrders.
- *   2. For each tranche, submits every ChildOrder to its target exchange.
- *   3. Re-seeds venues from the next bar between tranches (simulates time).
- *   4. Aggregates all FillResults into a single RouteResult.
- */
+/* Order router: strategy → exchange → aggregated result */
 #ifndef OR_ROUTER_H
 #define OR_ROUTER_H
 
@@ -14,34 +6,19 @@
 #include "or_exchange.h"
 #include "or_routing.h"
 
-/* ── Router context (reused across orders — warm path) ─────────────── */
 typedef struct {
-    Exchange  venues[OR_VENUE_COUNT];   /* pre-seeded and kept alive    */
+    Exchange  venues[OR_VENUE_COUNT];
     Strategy  strategy;
 } Router;
 
-/* ── API ────────────────────────────────────────────────────────────── */
-
-/* Initialise router with a strategy. Venues are NOT seeded yet.        */
 void or_router_init(Router *r, Strategy strategy);
 
-/*
- * Seed all venues from a bar (call once per new market-data tick).
- * This is the "cold path" — measured separately from route+submit.
- */
+/* Seed all venues from a bar — this is the cold path */
 void or_router_seed(Router *r, const Bar *bar);
 
 /*
- * Submit a parent order:
- *   - Calls strategy.route() to plan tranches.
- *   - For each tranche, submits children and re-seeds from bars[tranche_i].
- *   - Fills *result with aggregated execution metrics.
- *
- * bars[] must have at least as many elements as the number of tranches
- * the strategy will produce (required for TWAP/VWAP; ignored by others).
- *
- * @param ref_price   Reference price for slippage calculation.
- *                    Pass bar.vwap of the current bar.
+ * bars[] must have >= tranches the strategy produces (for TWAP/VWAP).
+ * ref_price: pass bar.vwap for slippage calc.
  */
 OrError or_router_submit(
     Router       *r,
@@ -52,8 +29,7 @@ OrError or_router_submit(
     RouteResult  *result
 );
 
-/* Built-in latency profiler: runs n_iters warm submits and returns
- * latency samples in out_us[] (caller-allocated, size >= n_iters).     */
+/* Warm-loop latency profiler, writes µs samples to out_us[] */
 void or_router_benchmark(
     Router       *r,
     const Bar    *bar,

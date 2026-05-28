@@ -1,16 +1,5 @@
-/*
- * main_sim_backtest.c — Simulated-orders backtest entry point.
- *
- * Combines real AAPL + MSFT + SPY bars with synthetic orders of
- * varying sizes (500 / 1000 / 2500 / 5000 / 10000 shares) and sides
- * (BUY / SELL), producing a richer strategy comparison.
- *
- * Usage:
- *   ./build/or_sim_backtest <price_feed_dir> <output_csv> [n_scenarios_per_dataset]
- *
- * Example:
- *   ./build/or_sim_backtest "Price Feed" results/c_sim_results.csv 2000
- */
+/* Sim-orders backtest: real bars × synthetic orders (varying size/side).
+ * Usage: ./build/or_sim_backtest <price_feed_dir> <output_csv> [n_scenarios] */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,7 +20,7 @@ static const char *PATHS_FMT[] = {
     "%s/SPY_1min_2024-2026.csv",
 };
 
-/* Inline mini-router (avoids double-seeding from Router struct) */
+
 static void run_scenario(
     const SimScenario *sc,
     Strategy          *strategy,
@@ -40,7 +29,7 @@ static void run_scenario(
     int                row_id,
     const char        *symbol
 ) {
-    /* Seed venues from scenario bar */
+
     for (int v = 0; v < OR_VENUE_COUNT; v++)
         or_exchange_seed(&venues[v], &sc->bar);
 
@@ -50,9 +39,9 @@ static void run_scenario(
     int        out_n[OR_MAX_TRANCHES];
     int        n_tranches = 0;
 
-    /* Make a copy — route() may not modify parent but we play safe */
+
     Order parent = sc->parent;
-    parent.id = or_next_id();  /* fresh ID for this run */
+    parent.id = or_next_id();
 
     strategy->route(&parent, venues, bars5, 5, strategy->params,
                     tranche_out, out_n, &n_tranches);
@@ -65,7 +54,7 @@ static void run_scenario(
     for (int t = 0; t < n_tranches; t++) {
         if (t > 0)
             for (int v = 0; v < OR_VENUE_COUNT; v++)
-                or_exchange_seed(&venues[v], &sc->bar);  /* re-seed between tranches */
+                or_exchange_seed(&venues[v], &sc->bar);
 
         for (int c = 0; c < out_n[t]; c++) {
             ChildOrder *child = &tranche_out[t][c];
@@ -88,7 +77,7 @@ static void run_scenario(
 
     if (avg_price > 0.0 && sc->ref_price > 0.0) {
         slippage_bps = (avg_price - sc->ref_price) / sc->ref_price * 10000.0;
-        is_bps       = slippage_bps;  /* for market orders IS == slippage */
+        is_bps       = slippage_bps;
     }
 
     fprintf(out,
@@ -113,7 +102,7 @@ int main(int argc, char *argv[]) {
     int n_scenarios        = (argc >= 4) ? atoi(argv[3]) : 2000;
     if (n_scenarios > MAX_SCENARIOS) n_scenarios = MAX_SCENARIOS;
 
-    /* Load datasets */
+
     static Dataset datasets[3];
     for (int d = 0; d < 3; d++) {
         char path[600];
@@ -123,7 +112,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "[sim] Loaded %d bars for %s\n", n, SYMBOLS[d]);
     }
 
-    /* Build strategies */
+
     Strategy strategies[N_STRATEGIES] = {
         or_strategy_best_price(),
         or_strategy_smart(1.0),
@@ -131,7 +120,7 @@ int main(int argc, char *argv[]) {
         or_strategy_vwap(5, 1.0),
     };
 
-    /* Open output */
+
     FILE *out = fopen(out_path, "w");
     if (!out) { fprintf(stderr, "[error] Cannot open %s\n", out_path); return 1; }
     fprintf(out,
